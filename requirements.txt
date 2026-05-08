@@ -1,4 +1,4 @@
 steamlit
-plotlt
+
 pandas
-numpy
+
