@@ -2,13 +2,16 @@ import streamlit as st
 import math
 import random
 import pandas as pd
+import plotly.graph_objects as go
+import plotly.express as px
+import numpy as np
 
 # 페이지 설정
 st.set_page_config(page_title="멀티 툴 앱", page_icon="🎲")
 
 # 사이드바 메인 메뉴
 st.sidebar.title("🛠️ 메뉴 선택")
-app_mode = st.sidebar.selectbox("사용할 기능을 선택하세요", ["계산기 모드", "확률 시뮬레이터"])
+app_mode = st.sidebar.selectbox("사용할 기능을 선택하세요", ["계산기 모드", "확률 시뮬레이터", "그래프 생성기"])
 
 # --- 1. 계산기 모드 로직 ---
 if app_mode == "계산기 모드":
@@ -82,9 +85,17 @@ elif app_mode == "확률 시뮬레이터":
             col1.metric("앞면 (Heads)", f"{heads}회", f"{heads/trials*100:.1f}%")
             col2.metric("뒷면 (Tails)", f"{tails}회", f"{tails/trials*100:.1f}%")
             
-            # 차트 표시
+            # 차트 표시 - 막대 그래프
+            st.subheader("📊 결과 분석")
             df = pd.DataFrame({"결과": ["앞면", "뒷면"], "횟수": [heads, tails]})
-            st.bar_chart(df.set_index("결과"))
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                fig_bar = px.bar(df, x="결과", y="횟수", title="막대 그래프", color="결과")
+                st.plotly_chart(fig_bar, use_container_width=True)
+            with col2:
+                fig_pie = px.pie(df, values="횟수", names="결과", title="원형 그래프")
+                st.plotly_chart(fig_pie, use_container_width=True)
 
     elif sim_type == "주사위 던지기":
         st.subheader("🎲 주사위 던지기")
@@ -98,16 +109,150 @@ elif app_mode == "확률 시뮬레이터":
             # 결과 데이터프레임 및 차트
             df = pd.DataFrame(list(counts.items()), columns=["눈금", "횟수"])
             
-            # 표와 차트 배치
-            col1, col2 = st.columns([1, 2])
+            st.subheader("📊 결과 분석")
+            col1, col2 = st.columns(2)
             with col1:
                 st.write("**상세 결과**")
                 st.dataframe(df, hide_index=True)
             with col2:
-                st.bar_chart(df.set_index("눈금"))
+                fig = px.bar(df, x="눈금", y="횟수", title="주사위 눈금별 빈도", 
+                            labels={"눈금": "주사위 눈금", "횟수": "횟수"},
+                            color="횟수", color_continuous_scale="Viridis")
+                st.plotly_chart(fig, use_container_width=True)
+            
+            # 추가 그래프
+            col1, col2 = st.columns(2)
+            with col1:
+                fig_pie = px.pie(df, values="횟수", names="눈금", title="눈금별 비율")
+                st.plotly_chart(fig_pie, use_container_width=True)
+            
+            with col2:
+                fig_line = px.line(df, x="눈금", y="횟수", title="눈금별 빈도 추이",
+                                  markers=True, line_shape="spline")
+                st.plotly_chart(fig_line, use_container_width=True)
             
             st.info(f"가장 많이 나온 눈금: {df.loc[df['횟수'].idxmax(), '눈금']}")
 
+# --- 3. 그래프 생성기 모드 ---
+elif app_mode == "그래프 생성기":
+    st.title("📈 그래프 생성기")
+    st.write("다양한 함수와 데이터를 시각화하세요.")
+    
+    graph_type = st.selectbox("그래프 종류를 선택하세요", 
+                              ["함수 그래프 (sin, cos, tan)", "다항식 그래프", "산점도", "히스토그램"])
+    
+    if graph_type == "함수 그래프 (sin, cos, tan)":
+        st.subheader("삼각함수 시각화")
+        func_type = st.selectbox("함수 선택", ["sin", "cos", "tan"])
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            x_min = st.number_input("X 최솟값", value=-10.0)
+        with col2:
+            x_max = st.number_input("X 최댓값", value=10.0)
+        
+        x = np.linspace(x_min, x_max, 1000)
+        
+        if func_type == "sin":
+            y = np.sin(x)
+            title = "y = sin(x)"
+        elif func_type == "cos":
+            y = np.cos(x)
+            title = "y = cos(x)"
+        else:  # tan
+            y = np.tan(x)
+            # tan 함수의 불연속점 처리
+            y = np.where(np.abs(y) > 100, np.nan, y)
+            title = "y = tan(x)"
+        
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(x=x, y=y, mode='lines', name=func_type,
+                                line=dict(color='blue', width=2)))
+        fig.update_layout(title=title, xaxis_title="X", yaxis_title="Y", 
+                         hovermode='x unified', height=500)
+        st.plotly_chart(fig, use_container_width=True)
+    
+    elif graph_type == "다항식 그래프":
+        st.subheader("다항식 시각화")
+        
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            a = st.number_input("a (x² 계수)", value=1.0)
+        with col2:
+            b = st.number_input("b (x 계수)", value=0.0)
+        with col3:
+            c = st.number_input("c (상수항)", value=0.0)
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            x_min = st.number_input("X 최솟값", value=-10.0, key="poly_min")
+        with col2:
+            x_max = st.number_input("X 최댓값", value=10.0, key="poly_max")
+        
+        x = np.linspace(x_min, x_max, 1000)
+        y = a * x**2 + b * x + c
+        
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(x=x, y=y, mode='lines', name='함수',
+                                line=dict(color='green', width=2)))
+        
+        # 꼭짓점 표시
+        if a != 0:
+            x_vertex = -b / (2 * a)
+            y_vertex = a * x_vertex**2 + b * x_vertex + c
+            fig.add_trace(go.Scatter(x=[x_vertex], y=[y_vertex], mode='markers',
+                                    marker=dict(size=10, color='red'),
+                                    name='꼭짓점'))
+        
+        fig.update_layout(title=f"y = {a}x² + {b}x + {c}", xaxis_title="X", 
+                         yaxis_title="Y", hovermode='x unified', height=500)
+        st.plotly_chart(fig, use_container_width=True)
+    
+    elif graph_type == "산점도":
+        st.subheader("산점도 생성")
+        
+        num_points = st.number_input("데이터 포인트 개수", min_value=10, max_value=1000, value=100)
+        noise_level = st.slider("노이즈 수준", 0.0, 2.0, 0.5)
+        
+        x = np.random.uniform(0, 10, num_points)
+        y = 2 * x + 5 + np.random.normal(0, noise_level, num_points)
+        
+        df = pd.DataFrame({"X": x, "Y": y})
+        
+        fig = px.scatter(df, x="X", y="Y", title="산점도",
+                        trendline="ols", trendline_color_override="red")
+        fig.update_layout(height=500)
+        st.plotly_chart(fig, use_container_width=True)
+    
+    elif graph_type == "히스토그램":
+        st.subheader("히스토그램")
+        
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            num_data = st.number_input("데이터 개수", min_value=100, max_value=10000, value=1000)
+        with col2:
+            bins = st.number_input("구간 개수", min_value=5, max_value=100, value=30)
+        with col3:
+            distribution = st.selectbox("분포", ["정규분포", "균등분포", "지수분포"])
+        
+        if distribution == "정규분포":
+            data = np.random.normal(50, 15, num_data)
+            dist_name = "정규분포 (μ=50, σ=15)"
+        elif distribution == "균등분포":
+            data = np.random.uniform(0, 100, num_data)
+            dist_name = "균등분포 (0-100)"
+        else:
+            data = np.random.exponential(20, num_data)
+            dist_name = "지수분포 (λ=0.05)"
+        
+        fig = go.Figure()
+        fig.add_trace(go.Histogram(x=data, nbinsx=bins, name='빈도',
+                                  marker=dict(color='skyblue', line=dict(color='navy', width=1))))
+        
+        fig.update_layout(title=f"히스토그램 ({dist_name})", xaxis_title="값", 
+                         yaxis_title="빈도", height=500)
+        st.plotly_chart(fig, use_container_width=True)
+
 # 하단 공통 정보
 st.sidebar.markdown("---")
-st.sidebar.info("버전: 2.0 (확률 시뮬레이터 추가)")
+st.sidebar.info("버전: 3.0 (그래프 생성기 추가)")
